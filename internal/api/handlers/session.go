@@ -40,6 +40,16 @@ func NewSessionHandler(sessionRepo repository.SessionRepositoryInterface, contai
 	}
 }
 
+// NewSessionHandlerWithManager cria um SessionHandler com um SessionManager compartilhado
+func NewSessionHandlerWithManager(sessionRepo repository.SessionRepositoryInterface, sessionManager *meow.SessionManager) *SessionHandler {
+	return &SessionHandler{
+		BaseHandler:    NewBaseHandler("SessionHandler"),
+		sessionRepo:    sessionRepo,
+		sessionManager: sessionManager,
+		authManager:    meow.NewAuthManager(sessionManager.GetDB(), sessionRepo),
+	}
+}
+
 // @Summary      Criar nova sessão WhatsApp
 // @Description  Cria uma nova sessão WhatsApp com o nome especificado
 // @Tags         sessions

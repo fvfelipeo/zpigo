@@ -53,6 +53,11 @@ func NewSessionManager(container *sqlstore.Container, db *bun.DB, sessionRepo re
 	}
 }
 
+// GetDB retorna a instância do banco de dados
+func (sm *SessionManager) GetDB() *bun.DB {
+	return sm.db
+}
+
 func (sm *SessionManager) CreateSession(sessionID string) (*whatsmeow.Client, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -79,6 +84,7 @@ func (sm *SessionManager) SetWhatsmeowClient(sessionID string, client *whatsmeow
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.whatsmeowClients[sessionID] = client
+	sm.logger.Info("Cliente WhatsApp adicionado ao SessionManager", "sessionID", sessionID, "totalSessions", len(sm.whatsmeowClients))
 }
 
 func (sm *SessionManager) GetWhatsmeowClient(sessionID string) *whatsmeow.Client {
@@ -116,6 +122,17 @@ func (sm *SessionManager) GetSession(sessionID string) (*whatsmeow.Client, bool)
 	defer sm.mu.RUnlock()
 
 	client, exists := sm.whatsmeowClients[sessionID]
+	sm.logger.Info("Buscando sessão", "sessionID", sessionID, "exists", exists, "totalSessions", len(sm.whatsmeowClients))
+
+	// Debug: Listar todas as sessões
+	if !exists {
+		sessionIDs := make([]string, 0, len(sm.whatsmeowClients))
+		for id := range sm.whatsmeowClients {
+			sessionIDs = append(sessionIDs, id)
+		}
+		sm.logger.Error("Sessão não encontrada", "sessionID", sessionID, "availableSessions", sessionIDs)
+	}
+
 	return client, exists
 }
 
@@ -423,9 +440,7 @@ func (sm *SessionManager) reconnectSession(sessionID, deviceJid string) error {
 	}
 
 	// Armazenar cliente apenas se conectou com sucesso
-	sm.mu.Lock()
-	sm.whatsmeowClients[sessionID] = client
-	sm.mu.Unlock()
+	sm.SetWhatsmeowClient(sessionID, client)
 
 	sm.logger.Info("✅ Sessão reconectada com sucesso", "sessionID", sessionID, "deviceJid", deviceJid)
 	return nil

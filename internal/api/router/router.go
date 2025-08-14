@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,7 +30,19 @@ func NewRouter(repos *repository.Repositories, container *sqlstore.Container) *g
 	r.Use(mw.CORS())
 	r.Use(mw.Security())
 
-	sessionHandler := handlers.NewSessionHandler(repos.Session, container, repos.GetDB())
+	// Criar uma única instância do SessionManager para ser compartilhada
+	sessionManager := meow.NewSessionManager(container, repos.GetDB(), repos.Session)
+
+	// Reconectar sessões que estavam conectadas antes do restart
+	go func() {
+		if err := sessionManager.ConnectOnStartup(); err != nil {
+			// Log do erro mas não falha a inicialização
+			fmt.Printf("Erro ao reconectar sessões na inicialização: %v\n", err)
+		}
+	}()
+
+	sessionHandler := handlers.NewSessionHandlerWithManager(repos.Session, sessionManager)
+	messageHandler := handlers.NewMessageHandlerWithManager(repos.Session, sessionManager)
 	authManager := meow.NewAuthManager(repos.GetDB(), repos.Session)
 
 	r.GET("/health", func(c *gin.Context) {
@@ -77,6 +90,16 @@ func NewRouter(repos *repository.Repositories, container *sqlstore.Container) *g
 			{
 				proxyGroup.POST("/set", func(c *gin.Context) {
 					sessionHandler.SetProxy(c)
+				})
+			}
+
+			messageGroup := sessionGroup.Group("/message")
+			{
+				messageGroup.POST("/send/text", func(c *gin.Context) {
+					messageHandler.SendTextMessage(c)
+				})
+				messageGroup.POST("/send/media", func(c *gin.Context) {
+					messageHandler.SendMedia(c)
 				})
 			}
 		}
