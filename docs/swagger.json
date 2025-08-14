@@ -1,0 +1,893 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API para gerenciamento de sessões WhatsApp usando a biblioteca whatsmeow",
+        "title": "ZPigo WhatsApp API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "Suporte da API",
+            "url": "http://www.swagger.io/support",
+            "email": "support@zpigo.com"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/health": {
+            "get": {
+                "description": "Endpoint para verificar se a API está funcionando",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Verificar saúde da API",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/add": {
+            "post": {
+                "description": "Cria uma nova sessão WhatsApp com o nome especificado",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Criar nova sessão WhatsApp",
+                "parameters": [
+                    {
+                        "description": "Dados da sessão",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateSessionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateSessionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/list": {
+            "get": {
+                "description": "Retorna uma lista com todas as sessões WhatsApp criadas",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Listar todas as sessões",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SessionListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionID}": {
+            "delete": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Remove uma sessão WhatsApp e todos os seus dados",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Deletar sessão",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID da sessão",
+                        "name": "sessionID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.DeleteSessionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionID}/connect": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Inicia a conexão de uma sessão WhatsApp",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Conectar sessão WhatsApp",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID da sessão",
+                        "name": "sessionID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConnectSessionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionID}/info": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retorna informações detalhadas de uma sessão específica",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Obter informações da sessão",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID da sessão",
+                        "name": "sessionID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SessionInfoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionID}/logout": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Desconecta uma sessão WhatsApp ativa",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Fazer logout da sessão",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID da sessão",
+                        "name": "sessionID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.LogoutSessionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionID}/pairphone": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Emparelha um número de telefone com a sessão WhatsApp",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Emparelhar telefone",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID da sessão",
+                        "name": "sessionID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Dados do telefone",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PairPhoneRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PairPhoneResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionID}/proxy/set": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Configura um proxy para a sessão WhatsApp",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Configurar proxy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID da sessão",
+                        "name": "sessionID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Dados do proxy",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.SetProxyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SetProxyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionID}/qr": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Gera um QR Code para conectar o WhatsApp Web",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Gerar QR Code para conexão",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID da sessão",
+                        "name": "sessionID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.QRCodeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionID}/status": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Verifica o status atual de conexão de uma sessão WhatsApp",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sessions"
+                ],
+                "summary": "Verificar status da sessão",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID da sessão",
+                        "name": "sessionID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SessionStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.ConnectSessionResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "qrCode": {
+                    "type": "string"
+                },
+                "session": {
+                    "$ref": "#/definitions/dto.SessionResponse"
+                }
+            }
+        },
+        "dto.CreateSessionRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "description": "Nome da sessão",
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "example": "Minha Sessão WhatsApp"
+                }
+            }
+        },
+        "dto.CreateSessionResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "description": "Mensagem de confirmação",
+                    "type": "string",
+                    "example": "Sessão criada com sucesso"
+                },
+                "session": {
+                    "description": "Dados da sessão criada",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.SessionResponse"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.DeleteSessionResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.LogoutSessionResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "session": {
+                    "$ref": "#/definitions/dto.SessionResponse"
+                }
+            }
+        },
+        "dto.PairPhoneRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "phoneNumber"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 10
+                }
+            }
+        },
+        "dto.PairPhoneResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "session": {
+                    "$ref": "#/definitions/dto.SessionResponse"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.QRCodeResponse": {
+            "type": "object",
+            "properties": {
+                "expiresIn": {
+                    "type": "integer"
+                },
+                "qrCode": {
+                    "type": "string"
+                },
+                "sessionId": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SessionInfoResponse": {
+            "type": "object",
+            "properties": {
+                "hasProxy": {
+                    "type": "boolean"
+                },
+                "isConnected": {
+                    "type": "boolean"
+                },
+                "session": {
+                    "$ref": "#/definitions/dto.SessionResponse"
+                }
+            }
+        },
+        "dto.SessionListResponse": {
+            "type": "object",
+            "properties": {
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.SessionResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.SessionResponse": {
+            "type": "object",
+            "properties": {
+                "connectedAt": {
+                    "description": "Data de conexão",
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "createdAt": {
+                    "description": "Data de criação",
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "id": {
+                    "description": "ID único da sessão",
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "name": {
+                    "description": "Nome da sessão",
+                    "type": "string",
+                    "example": "Minha Sessão WhatsApp"
+                },
+                "phone": {
+                    "description": "Número do telefone conectado",
+                    "type": "string",
+                    "example": "5511999999999"
+                },
+                "proxyHost": {
+                    "description": "Host do proxy",
+                    "type": "string",
+                    "example": "proxy.example.com"
+                },
+                "proxyPass": {
+                    "description": "Senha do proxy",
+                    "type": "string",
+                    "example": "senha"
+                },
+                "proxyPort": {
+                    "description": "Porta do proxy",
+                    "type": "integer",
+                    "example": 8080
+                },
+                "proxyType": {
+                    "description": "Tipo do proxy",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.ProxyType"
+                        }
+                    ],
+                    "example": "http"
+                },
+                "proxyUser": {
+                    "description": "Usuário do proxy",
+                    "type": "string",
+                    "example": "usuario"
+                },
+                "qrCode": {
+                    "description": "QR Code em base64",
+                    "type": "string",
+                    "example": "data:image/png;base64,iVBORw0..."
+                },
+                "status": {
+                    "description": "Status da sessão",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.SessionStatus"
+                        }
+                    ],
+                    "example": "disconnected"
+                },
+                "updatedAt": {
+                    "description": "Data de atualização",
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                }
+            }
+        },
+        "dto.SessionStatusResponse": {
+            "type": "object",
+            "properties": {
+                "connected": {
+                    "type": "boolean"
+                },
+                "hasProxy": {
+                    "type": "boolean"
+                },
+                "loggedIn": {
+                    "type": "boolean"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "sessionId": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/models.SessionStatus"
+                },
+                "timestamp": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.SetProxyRequest": {
+            "type": "object",
+            "required": [
+                "host",
+                "port",
+                "type"
+            ],
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer",
+                    "maximum": 65535,
+                    "minimum": 1
+                },
+                "type": {
+                    "$ref": "#/definitions/models.ProxyType"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SetProxyResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "session": {
+                    "$ref": "#/definitions/dto.SessionResponse"
+                }
+            }
+        },
+        "models.ProxyType": {
+            "type": "string",
+            "enum": [
+                "http",
+                "socks5"
+            ],
+            "x-enum-varnames": [
+                "ProxyHTTP",
+                "ProxySOCKS5"
+            ]
+        },
+        "models.SessionStatus": {
+            "type": "string",
+            "enum": [
+                "disconnected",
+                "connecting",
+                "connected"
+            ],
+            "x-enum-varnames": [
+                "StatusDisconnected",
+                "StatusConnecting",
+                "StatusConnected"
+            ]
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "description": "Digite \"Bearer \" seguido do seu token JWT",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    },
+    "externalDocs": {
+        "description": "OpenAPI",
+        "url": "https://swagger.io/resources/open-api/"
+    }
+}

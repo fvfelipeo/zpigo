@@ -1,0 +1,596 @@
+basePath: /
+definitions:
+  dto.ConnectSessionResponse:
+    properties:
+      message:
+        type: string
+      qrCode:
+        type: string
+      session:
+        $ref: '#/definitions/dto.SessionResponse'
+    type: object
+  dto.CreateSessionRequest:
+    properties:
+      name:
+        description: Nome da sessão
+        example: Minha Sessão WhatsApp
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - name
+    type: object
+  dto.CreateSessionResponse:
+    properties:
+      message:
+        description: Mensagem de confirmação
+        example: Sessão criada com sucesso
+        type: string
+      session:
+        allOf:
+        - $ref: '#/definitions/dto.SessionResponse'
+        description: Dados da sessão criada
+    type: object
+  dto.DeleteSessionResponse:
+    properties:
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  dto.LogoutSessionResponse:
+    properties:
+      message:
+        type: string
+      session:
+        $ref: '#/definitions/dto.SessionResponse'
+    type: object
+  dto.PairPhoneRequest:
+    properties:
+      code:
+        type: string
+      phoneNumber:
+        maxLength: 20
+        minLength: 10
+        type: string
+    required:
+    - code
+    - phoneNumber
+    type: object
+  dto.PairPhoneResponse:
+    properties:
+      message:
+        type: string
+      session:
+        $ref: '#/definitions/dto.SessionResponse'
+      success:
+        type: boolean
+    type: object
+  dto.QRCodeResponse:
+    properties:
+      expiresIn:
+        type: integer
+      qrCode:
+        type: string
+      sessionId:
+        type: string
+    type: object
+  dto.SessionInfoResponse:
+    properties:
+      hasProxy:
+        type: boolean
+      isConnected:
+        type: boolean
+      session:
+        $ref: '#/definitions/dto.SessionResponse'
+    type: object
+  dto.SessionListResponse:
+    properties:
+      sessions:
+        items:
+          $ref: '#/definitions/dto.SessionResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.SessionResponse:
+    properties:
+      connectedAt:
+        description: Data de conexão
+        example: "2023-01-01T00:00:00Z"
+        type: string
+      createdAt:
+        description: Data de criação
+        example: "2023-01-01T00:00:00Z"
+        type: string
+      id:
+        description: ID único da sessão
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      name:
+        description: Nome da sessão
+        example: Minha Sessão WhatsApp
+        type: string
+      phone:
+        description: Número do telefone conectado
+        example: "5511999999999"
+        type: string
+      proxyHost:
+        description: Host do proxy
+        example: proxy.example.com
+        type: string
+      proxyPass:
+        description: Senha do proxy
+        example: senha
+        type: string
+      proxyPort:
+        description: Porta do proxy
+        example: 8080
+        type: integer
+      proxyType:
+        allOf:
+        - $ref: '#/definitions/models.ProxyType'
+        description: Tipo do proxy
+        example: http
+      proxyUser:
+        description: Usuário do proxy
+        example: usuario
+        type: string
+      qrCode:
+        description: QR Code em base64
+        example: data:image/png;base64,iVBORw0...
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/models.SessionStatus'
+        description: Status da sessão
+        example: disconnected
+      updatedAt:
+        description: Data de atualização
+        example: "2023-01-01T00:00:00Z"
+        type: string
+    type: object
+  dto.SessionStatusResponse:
+    properties:
+      connected:
+        type: boolean
+      hasProxy:
+        type: boolean
+      loggedIn:
+        type: boolean
+      phone:
+        type: string
+      sessionId:
+        type: string
+      status:
+        $ref: '#/definitions/models.SessionStatus'
+      timestamp:
+        type: integer
+    type: object
+  dto.SetProxyRequest:
+    properties:
+      host:
+        type: string
+      password:
+        type: string
+      port:
+        maximum: 65535
+        minimum: 1
+        type: integer
+      type:
+        $ref: '#/definitions/models.ProxyType'
+      username:
+        type: string
+    required:
+    - host
+    - port
+    - type
+    type: object
+  dto.SetProxyResponse:
+    properties:
+      message:
+        type: string
+      session:
+        $ref: '#/definitions/dto.SessionResponse'
+    type: object
+  models.ProxyType:
+    enum:
+    - http
+    - socks5
+    type: string
+    x-enum-varnames:
+    - ProxyHTTP
+    - ProxySOCKS5
+  models.SessionStatus:
+    enum:
+    - disconnected
+    - connecting
+    - connected
+    type: string
+    x-enum-varnames:
+    - StatusDisconnected
+    - StatusConnecting
+    - StatusConnected
+externalDocs:
+  description: OpenAPI
+  url: https://swagger.io/resources/open-api/
+host: localhost:8080
+info:
+  contact:
+    email: support@zpigo.com
+    name: Suporte da API
+    url: http://www.swagger.io/support
+  description: API para gerenciamento de sessões WhatsApp usando a biblioteca whatsmeow
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: ZPigo WhatsApp API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Endpoint para verificar se a API está funcionando
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Verificar saúde da API
+      tags:
+      - health
+  /sessions/{sessionID}:
+    delete:
+      consumes:
+      - application/json
+      description: Remove uma sessão WhatsApp e todos os seus dados
+      parameters:
+      - description: ID da sessão
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DeleteSessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Deletar sessão
+      tags:
+      - sessions
+  /sessions/{sessionID}/connect:
+    post:
+      consumes:
+      - application/json
+      description: Inicia a conexão de uma sessão WhatsApp
+      parameters:
+      - description: ID da sessão
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ConnectSessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Conectar sessão WhatsApp
+      tags:
+      - sessions
+  /sessions/{sessionID}/info:
+    get:
+      consumes:
+      - application/json
+      description: Retorna informações detalhadas de uma sessão específica
+      parameters:
+      - description: ID da sessão
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SessionInfoResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Obter informações da sessão
+      tags:
+      - sessions
+  /sessions/{sessionID}/logout:
+    post:
+      consumes:
+      - application/json
+      description: Desconecta uma sessão WhatsApp ativa
+      parameters:
+      - description: ID da sessão
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LogoutSessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Fazer logout da sessão
+      tags:
+      - sessions
+  /sessions/{sessionID}/pairphone:
+    post:
+      consumes:
+      - application/json
+      description: Emparelha um número de telefone com a sessão WhatsApp
+      parameters:
+      - description: ID da sessão
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      - description: Dados do telefone
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PairPhoneRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.PairPhoneResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Emparelhar telefone
+      tags:
+      - sessions
+  /sessions/{sessionID}/proxy/set:
+    post:
+      consumes:
+      - application/json
+      description: Configura um proxy para a sessão WhatsApp
+      parameters:
+      - description: ID da sessão
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      - description: Dados do proxy
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SetProxyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SetProxyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Configurar proxy
+      tags:
+      - sessions
+  /sessions/{sessionID}/qr:
+    get:
+      consumes:
+      - application/json
+      description: Gera um QR Code para conectar o WhatsApp Web
+      parameters:
+      - description: ID da sessão
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.QRCodeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Gerar QR Code para conexão
+      tags:
+      - sessions
+  /sessions/{sessionID}/status:
+    get:
+      consumes:
+      - application/json
+      description: Verifica o status atual de conexão de uma sessão WhatsApp
+      parameters:
+      - description: ID da sessão
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SessionStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Verificar status da sessão
+      tags:
+      - sessions
+  /sessions/add:
+    post:
+      consumes:
+      - application/json
+      description: Cria uma nova sessão WhatsApp com o nome especificado
+      parameters:
+      - description: Dados da sessão
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateSessionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.CreateSessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Criar nova sessão WhatsApp
+      tags:
+      - sessions
+  /sessions/list:
+    get:
+      consumes:
+      - application/json
+      description: Retorna uma lista com todas as sessões WhatsApp criadas
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SessionListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Listar todas as sessões
+      tags:
+      - sessions
+securityDefinitions:
+  ApiKeyAuth:
+    description: Digite "Bearer " seguido do seu token JWT
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
