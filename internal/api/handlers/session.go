@@ -1,33 +1,31 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/uptrace/bun"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 
 	"zpigo/internal/api/dto"
-	"zpigo/internal/db/models"
 	"zpigo/internal/meow"
-	"zpigo/internal/repository"
+	"zpigo/internal/store"
+	"zpigo/internal/store/models"
 )
 
 type SessionHandler struct {
 	*BaseHandler
-	sessionRepo    repository.SessionRepositoryInterface
+	sessionRepo    store.SessionRepositoryInterface
 	sessionManager *meow.SessionManager
 	authManager    *meow.AuthManager
 }
 
-func NewSessionHandler(sessionRepo repository.SessionRepositoryInterface, container *sqlstore.Container, db *bun.DB) *SessionHandler {
+func NewSessionHandler(sessionRepo store.SessionRepositoryInterface, container *sqlstore.Container, db *sql.DB) *SessionHandler {
 	sessionManager := meow.NewSessionManager(container, db, sessionRepo)
 
-	// Reconectar sessões que estavam conectadas antes do restart
 	go func() {
 		if err := sessionManager.ConnectOnStartup(); err != nil {
-			// Log do erro mas não falha a inicialização
 			fmt.Printf("Erro ao reconectar sessões na inicialização: %v\n", err)
 		}
 	}()
@@ -40,8 +38,7 @@ func NewSessionHandler(sessionRepo repository.SessionRepositoryInterface, contai
 	}
 }
 
-// NewSessionHandlerWithManager cria um SessionHandler com um SessionManager compartilhado
-func NewSessionHandlerWithManager(sessionRepo repository.SessionRepositoryInterface, sessionManager *meow.SessionManager) *SessionHandler {
+func NewSessionHandlerWithManager(sessionRepo store.SessionRepositoryInterface, sessionManager *meow.SessionManager) *SessionHandler {
 	return &SessionHandler{
 		BaseHandler:    NewBaseHandler("SessionHandler"),
 		sessionRepo:    sessionRepo,
@@ -195,7 +192,6 @@ func (h *SessionHandler) GetSessionInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// GetSessionStatus godoc
 // @Summary      Verificar status da sessão
 // @Description  Verifica o status atual de conexão de uma sessão WhatsApp
 // @Tags         sessions
@@ -252,7 +248,6 @@ func (h *SessionHandler) GetSessionStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// DeleteSession godoc
 // @Summary      Deletar sessão
 // @Description  Remove uma sessão WhatsApp e todos os seus dados
 // @Tags         sessions
@@ -300,7 +295,6 @@ func (h *SessionHandler) DeleteSession(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// ConnectSession godoc
 // @Summary      Conectar sessão WhatsApp
 // @Description  Inicia a conexão de uma sessão WhatsApp
 // @Tags         sessions
@@ -367,7 +361,6 @@ func (h *SessionHandler) ConnectSession(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// LogoutSession godoc
 // @Summary      Fazer logout da sessão
 // @Description  Desconecta uma sessão WhatsApp ativa
 // @Tags         sessions
@@ -427,7 +420,6 @@ func (h *SessionHandler) LogoutSession(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// GetQRCode godoc
 // @Summary      Gerar QR Code para conexão
 // @Description  Gera um QR Code para conectar o WhatsApp Web
 // @Tags         sessions
@@ -477,7 +469,6 @@ func (h *SessionHandler) GetQRCode(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// PairPhone godoc
 // @Summary      Emparelhar telefone
 // @Description  Emparelha um número de telefone com a sessão WhatsApp
 // @Tags         sessions
@@ -555,7 +546,6 @@ func (h *SessionHandler) PairPhone(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// SetProxy godoc
 // @Summary      Configurar proxy
 // @Description  Configura um proxy para a sessão WhatsApp
 // @Tags         sessions

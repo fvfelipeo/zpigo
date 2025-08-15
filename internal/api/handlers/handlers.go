@@ -59,7 +59,6 @@ func (h *BaseHandler) WriteSuccessResponse(w http.ResponseWriter, message string
 	h.WriteJSONResponse(w, http.StatusOK, response)
 }
 
-// HealthCheck godoc
 // @Summary      Verificar saúde da API
 // @Description  Endpoint para verificar se a API está funcionando
 // @Tags         health

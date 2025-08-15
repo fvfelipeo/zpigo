@@ -2,13 +2,13 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/uptrace/bun"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -17,17 +17,17 @@ import (
 
 	"zpigo/internal/api/dto"
 	"zpigo/internal/meow"
-	"zpigo/internal/repository"
+	"zpigo/internal/store"
 )
 
 type MessageHandler struct {
 	*BaseHandler
-	sessionRepo    repository.SessionRepositoryInterface
+	sessionRepo    store.SessionRepositoryInterface
 	sessionManager *meow.SessionManager
 	authManager    *meow.AuthManager
 }
 
-func NewMessageHandler(sessionRepo repository.SessionRepositoryInterface, container *sqlstore.Container, db *bun.DB) *MessageHandler {
+func NewMessageHandler(sessionRepo store.SessionRepositoryInterface, container *sqlstore.Container, db *sql.DB) *MessageHandler {
 	sessionManager := meow.NewSessionManager(container, db, sessionRepo)
 
 	return &MessageHandler{
@@ -38,8 +38,7 @@ func NewMessageHandler(sessionRepo repository.SessionRepositoryInterface, contai
 	}
 }
 
-// NewMessageHandlerWithManager cria um MessageHandler com um SessionManager compartilhado
-func NewMessageHandlerWithManager(sessionRepo repository.SessionRepositoryInterface, sessionManager *meow.SessionManager) *MessageHandler {
+func NewMessageHandlerWithManager(sessionRepo store.SessionRepositoryInterface, sessionManager *meow.SessionManager) *MessageHandler {
 	return &MessageHandler{
 		BaseHandler:    NewBaseHandler("MessageHandler"),
 		sessionRepo:    sessionRepo,
@@ -48,7 +47,6 @@ func NewMessageHandlerWithManager(sessionRepo repository.SessionRepositoryInterf
 	}
 }
 
-// SendTextMessage godoc
 // @Summary      Enviar mensagem de texto via WhatsApp
 // @Description  Envia uma mensagem de texto para um número específico através da sessão WhatsApp
 // @Tags         messages
@@ -76,7 +74,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 
 	h.logger.Info("Iniciando envio de mensagem de texto", "sessionID", sessionID)
 
-	// Validar e decodificar request
 	var req dto.SendTextMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error("Erro ao decodificar request", "sessionID", sessionID, "error", err)
@@ -88,7 +85,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 		return
 	}
 
-	// Validar campos obrigatórios
 	if req.Phone == "" {
 		h.logger.Error("Número de telefone não fornecido", "sessionID", sessionID)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -109,7 +105,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 		return
 	}
 
-	// Validar formato do telefone
 	if !req.ValidatePhoneNumber() {
 		h.logger.Error("Formato de telefone inválido", "sessionID", sessionID, "phone", req.Phone)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -120,7 +115,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 		return
 	}
 
-	// Verificar se a sessão existe
 	session, err := h.sessionRepo.GetByID(c.Request.Context(), sessionID)
 	if err != nil {
 		h.logger.Error("Sessão não encontrada", "sessionID", sessionID, "error", err)
@@ -132,7 +126,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 		return
 	}
 
-	// Verificar se a sessão está conectada
 	if !session.IsConnected() {
 		h.logger.Error("Sessão não está conectada", "sessionID", sessionID, "status", session.Status)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -143,11 +136,9 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 		return
 	}
 
-	// Debug: Listar todas as sessões ativas
 	activeSessions := h.sessionManager.ListSessions()
 	h.logger.Info("Sessões ativas no SessionManager", "sessionID", sessionID, "activeSessions", activeSessions, "totalSessions", len(activeSessions))
 
-	// Obter cliente WhatsApp
 	client, exists := h.sessionManager.GetSession(sessionID)
 	if !exists {
 		h.logger.Error("Cliente WhatsApp não encontrado", "sessionID", sessionID, "activeSessions", activeSessions)
@@ -161,7 +152,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 
 	h.logger.Info("Cliente WhatsApp encontrado", "sessionID", sessionID, "clientConnected", client.IsConnected())
 
-	// Verificar se o cliente está conectado
 	if !client.IsConnected() {
 		h.logger.Error("Cliente WhatsApp não está conectado", "sessionID", sessionID)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -172,7 +162,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 		return
 	}
 
-	// Validar ContextInfo se fornecido (para replies)
 	if err := h.validateContextInfo(req.ContextInfo); err != nil {
 		h.logger.Error("ContextInfo inválido", "sessionID", sessionID, "error", err)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -183,7 +172,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 		return
 	}
 
-	// Validar e parsear JID do destinatário
 	recipient, err := h.parseJID(req.Phone)
 	if err != nil {
 		h.logger.Error("Erro ao parsear número de telefone", "sessionID", sessionID, "phone", req.Phone, "error", err)
@@ -195,20 +183,17 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 		return
 	}
 
-	// Gerar ID da mensagem
 	messageID := req.ID
 	if messageID == "" {
 		messageID = client.GenerateMessageID()
 	}
 
-	// Criar mensagem WhatsApp
 	msg := &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text: proto.String(req.Message),
 		},
 	}
 
-	// Adicionar ContextInfo se fornecido (para replies e mentions)
 	if req.ContextInfo != nil {
 		msg.ExtendedTextMessage.ContextInfo = req.ContextInfo
 		h.logger.Info("ContextInfo adicionado à mensagem", "sessionID", sessionID, "messageID", messageID)
@@ -216,7 +201,6 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 
 	h.logger.Info("Enviando mensagem", "sessionID", sessionID, "phone", req.Phone, "messageID", messageID)
 
-	// Enviar mensagem
 	resp, err := client.SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: messageID})
 	if err != nil {
 		h.logger.Error("Erro ao enviar mensagem", "sessionID", sessionID, "phone", req.Phone, "messageID", messageID, "error", err)
@@ -230,14 +214,12 @@ func (h *MessageHandler) SendTextMessage(c *gin.Context) {
 
 	h.logger.Info("Mensagem enviada com sucesso", "sessionID", sessionID, "phone", req.Phone, "messageID", messageID, "timestamp", resp.Timestamp)
 
-	// Criar resposta de sucesso
 	response := dto.ToMessageSuccessResponse(messageID, req.Phone)
 	response.Timestamp = resp.Timestamp.Unix()
 
 	c.JSON(http.StatusOK, response)
 }
 
-// SendMedia godoc
 // @Summary      Enviar mídia via WhatsApp
 // @Description  Envia mídia (imagem, áudio, vídeo, documento) para um número específico através da sessão WhatsApp
 // @Tags         messages
@@ -265,7 +247,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 
 	h.logger.Info("Iniciando envio de mídia", "sessionID", sessionID)
 
-	// Validar e decodificar request
 	var req dto.SendMediaRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.Error("Erro ao decodificar request", "sessionID", sessionID, "error", err)
@@ -277,7 +258,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Validar campos obrigatórios
 	if req.Phone == "" {
 		h.logger.Error("Número de telefone não fornecido", "sessionID", sessionID)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -308,7 +288,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Validar formato do telefone
 	if !req.ValidatePhoneNumber() {
 		h.logger.Error("Formato de telefone inválido", "sessionID", sessionID, "phone", req.Phone)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -319,7 +298,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Validar tipo de mídia
 	if !req.ValidateMediaType() {
 		h.logger.Error("Tipo de mídia inválido", "sessionID", sessionID, "mediaType", req.MediaType)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -330,7 +308,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Validar dados da mídia (base64)
 	if !req.ValidateMediaData() {
 		h.logger.Error("Dados da mídia inválidos", "sessionID", sessionID)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -341,7 +318,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Verificar se a sessão existe
 	session, err := h.sessionRepo.GetByID(c.Request.Context(), sessionID)
 	if err != nil {
 		h.logger.Error("Sessão não encontrada", "sessionID", sessionID, "error", err)
@@ -353,7 +329,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Verificar se a sessão está conectada
 	if !session.IsConnected() {
 		h.logger.Error("Sessão não está conectada", "sessionID", sessionID, "status", session.Status)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -364,7 +339,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Obter cliente WhatsApp
 	client, exists := h.sessionManager.GetSession(sessionID)
 	if !exists {
 		h.logger.Error("Cliente WhatsApp não encontrado", "sessionID", sessionID)
@@ -376,7 +350,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Verificar se o cliente está conectado
 	if !client.IsConnected() {
 		h.logger.Error("Cliente WhatsApp não está conectado", "sessionID", sessionID)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -387,7 +360,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Validar ContextInfo se fornecido
 	if err := h.validateContextInfo(req.ContextInfo); err != nil {
 		h.logger.Error("ContextInfo inválido", "sessionID", sessionID, "error", err)
 		c.JSON(http.StatusBadRequest, dto.ToMessageErrorResponse(
@@ -398,7 +370,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Validar e parsear JID do destinatário
 	recipient, err := h.parseJID(req.Phone)
 	if err != nil {
 		h.logger.Error("Erro ao parsear número de telefone", "sessionID", sessionID, "phone", req.Phone, "error", err)
@@ -410,7 +381,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Decodificar dados da mídia
 	mediaBytes, err := base64.StdEncoding.DecodeString(req.MediaData)
 	if err != nil {
 		h.logger.Error("Erro ao decodificar dados da mídia", "sessionID", sessionID, "error", err)
@@ -422,13 +392,11 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Gerar ID da mensagem
 	messageID := req.ID
 	if messageID == "" {
 		messageID = client.GenerateMessageID()
 	}
 
-	// Preparar dados para upload
 	fileName := req.GetFileName()
 	mimeType := req.GetMimeType()
 
@@ -439,7 +407,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		"mimeType", mimeType,
 		"size", len(mediaBytes))
 
-	// Mapear tipo de mídia para whatsmeow.MediaType
 	var mediaType whatsmeow.MediaType
 	switch strings.ToLower(req.MediaType) {
 	case "image":
@@ -460,7 +427,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Fazer upload da mídia para WhatsApp
 	uploadResp, err := client.Upload(context.Background(), mediaBytes, mediaType)
 	if err != nil {
 		h.logger.Error("Erro ao fazer upload da mídia", "sessionID", sessionID, "error", err)
@@ -472,7 +438,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 		return
 	}
 
-	// Criar mensagem baseada no tipo de mídia
 	msg, err := h.createMediaMessage(req.MediaType, uploadResp, fileName, mimeType, req.Caption, req.ContextInfo)
 	if err != nil {
 		h.logger.Error("Erro ao criar mensagem de mídia", "sessionID", sessionID, "error", err)
@@ -486,7 +451,6 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 
 	h.logger.Info("Enviando mídia", "sessionID", sessionID, "phone", req.Phone, "messageID", messageID, "mediaType", req.MediaType)
 
-	// Enviar mensagem
 	resp, err := client.SendMessage(context.Background(), recipient, msg, whatsmeow.SendRequestExtra{ID: messageID})
 	if err != nil {
 		h.logger.Error("Erro ao enviar mídia", "sessionID", sessionID, "phone", req.Phone, "messageID", messageID, "error", err)
@@ -500,27 +464,21 @@ func (h *MessageHandler) SendMedia(c *gin.Context) {
 
 	h.logger.Info("Mídia enviada com sucesso", "sessionID", sessionID, "phone", req.Phone, "messageID", messageID, "timestamp", resp.Timestamp, "mediaType", req.MediaType)
 
-	// Criar resposta de sucesso
 	response := dto.ToMediaSuccessResponse(messageID, req.Phone, req.MediaType, fileName)
 	response.Timestamp = resp.Timestamp.Unix()
 
 	c.JSON(http.StatusOK, response)
 }
 
-// parseJID converte um número de telefone em JID do WhatsApp
-// Segue exatamente o padrão da implementação de referência
 func (h *MessageHandler) parseJID(phone string) (types.JID, error) {
-	// Remove + se presente (como na referência)
 	if len(phone) > 0 && phone[0] == '+' {
 		phone = phone[1:]
 	}
 
-	// Se não contém @, adicionar o servidor padrão
 	if !strings.ContainsRune(phone, '@') {
 		return types.NewJID(phone, types.DefaultUserServer), nil
 	}
 
-	// Parsear JID completo
 	recipient, err := types.ParseJID(phone)
 	if err != nil {
 		h.logger.Error("JID inválido", "phone", phone, "error", err)
@@ -535,14 +493,11 @@ func (h *MessageHandler) parseJID(phone string) (types.JID, error) {
 	return recipient, nil
 }
 
-// validateContextInfo valida as informações de contexto para replies e mentions
-// Segue o padrão da implementação de referência
 func (h *MessageHandler) validateContextInfo(contextInfo *waE2E.ContextInfo) error {
 	if contextInfo == nil {
 		return nil // ContextInfo é opcional
 	}
 
-	// Validar regras para replies (StanzaID e Participant devem ser fornecidos juntos)
 	if contextInfo.StanzaID != nil {
 		if contextInfo.Participant == nil {
 			return fmt.Errorf("participant é obrigatório quando StanzaID é fornecido")
@@ -558,7 +513,6 @@ func (h *MessageHandler) validateContextInfo(contextInfo *waE2E.ContextInfo) err
 	return nil
 }
 
-// createMediaMessage cria uma mensagem de mídia baseada no tipo
 func (h *MessageHandler) createMediaMessage(mediaType string, uploadResp whatsmeow.UploadResponse, fileName, mimeType, caption string, contextInfo *waE2E.ContextInfo) (*waE2E.Message, error) {
 	switch strings.ToLower(mediaType) {
 	case "image":
@@ -574,7 +528,6 @@ func (h *MessageHandler) createMediaMessage(mediaType string, uploadResp whatsme
 	}
 }
 
-// createImageMessage cria uma mensagem de imagem
 func (h *MessageHandler) createImageMessage(uploadResp whatsmeow.UploadResponse, _ string, mimeType, caption string, contextInfo *waE2E.ContextInfo) *waE2E.Message {
 	msg := &waE2E.Message{
 		ImageMessage: &waE2E.ImageMessage{
@@ -599,7 +552,6 @@ func (h *MessageHandler) createImageMessage(uploadResp whatsmeow.UploadResponse,
 	return msg
 }
 
-// createAudioMessage cria uma mensagem de áudio
 func (h *MessageHandler) createAudioMessage(uploadResp whatsmeow.UploadResponse, _ string, mimeType string, contextInfo *waE2E.ContextInfo) *waE2E.Message {
 	msg := &waE2E.Message{
 		AudioMessage: &waE2E.AudioMessage{
@@ -620,7 +572,6 @@ func (h *MessageHandler) createAudioMessage(uploadResp whatsmeow.UploadResponse,
 	return msg
 }
 
-// createVideoMessage cria uma mensagem de vídeo
 func (h *MessageHandler) createVideoMessage(uploadResp whatsmeow.UploadResponse, _ string, mimeType, caption string, contextInfo *waE2E.ContextInfo) *waE2E.Message {
 	msg := &waE2E.Message{
 		VideoMessage: &waE2E.VideoMessage{
@@ -645,7 +596,6 @@ func (h *MessageHandler) createVideoMessage(uploadResp whatsmeow.UploadResponse,
 	return msg
 }
 
-// createDocumentMessage cria uma mensagem de documento
 func (h *MessageHandler) createDocumentMessage(uploadResp whatsmeow.UploadResponse, fileName, mimeType string, contextInfo *waE2E.ContextInfo) *waE2E.Message {
 	msg := &waE2E.Message{
 		DocumentMessage: &waE2E.DocumentMessage{

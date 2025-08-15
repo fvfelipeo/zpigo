@@ -7,10 +7,9 @@ import (
 	"github.com/go-resty/resty/v2"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
-	"zpigo/internal/db/models"
 	"zpigo/internal/logger"
+	"zpigo/internal/store/models"
 )
-
 
 func BuildCacheKey(apiKey, sessionID string) string {
 	return apiKey + ":" + sessionID
@@ -61,9 +60,8 @@ func NewLoggerForComponent(component string) logger.Logger {
 }
 
 func NewWhatsAppLogger(component, level string) waLog.Logger {
-	return logger.NewWhatsAppLogger(component, level)
+	return logger.ForWhatsApp(component)
 }
-
 
 const (
 	DefaultHTTPTimeout  = 30 * time.Second
@@ -80,13 +78,11 @@ const (
 	DefaultDebugLogLevel = "DEBUG"
 )
 
-
 type contextKey string
 
 const (
 	AuthContextKey contextKey = "auth"
 )
-
 
 func ValidateSessionID(sessionID string) bool {
 	return sessionID != "" && len(sessionID) > 0
@@ -100,7 +96,6 @@ func ValidateWebhookURL(url string) bool {
 	return url != "" && (len(url) > 7) && (url[:7] == "http://" || url[:8] == "https://")
 }
 
-
 func StringPtr(s string) *string {
 	return &s
 }
@@ -113,7 +108,6 @@ func BoolPtr(b bool) *bool {
 	return &b
 }
 
-
 func FormatDuration(d time.Duration) string {
 	if d < time.Minute {
 		return d.Round(time.Second).String()
@@ -123,7 +117,6 @@ func FormatDuration(d time.Duration) string {
 	}
 	return d.Round(time.Hour).String()
 }
-
 
 func SafeClose(ch chan bool) {
 	select {

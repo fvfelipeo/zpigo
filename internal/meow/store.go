@@ -22,7 +22,7 @@ func NewWhatsAppStore(cfg *config.Config) (*sqlstore.Container, error) {
 		return nil, fmt.Errorf("erro ao testar conexão SQL: %w", err)
 	}
 
-	waLogger := logger.NewWhatsAppLogger("store", "INFO")
+	waLogger := logger.ForWhatsApp("store")
 
 	container := sqlstore.NewWithDB(db, "postgres", waLogger)
 

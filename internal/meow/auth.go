@@ -2,25 +2,24 @@ package meow
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
 
-	"github.com/uptrace/bun"
-
-	"zpigo/internal/db/models"
 	"zpigo/internal/logger"
-	"zpigo/internal/repository"
+	"zpigo/internal/store"
+	"zpigo/internal/store/models"
 )
 
 type AuthManager struct {
-	db           *bun.DB
-	sessionRepo  repository.SessionRepositoryInterface
+	db           *sql.DB
+	sessionRepo  store.SessionRepositoryInterface
 	cacheManager *CacheManager
 	logger       logger.Logger
 }
 
-func NewAuthManager(db *bun.DB, sessionRepo repository.SessionRepositoryInterface) *AuthManager {
+func NewAuthManager(db *sql.DB, sessionRepo store.SessionRepositoryInterface) *AuthManager {
 	return &AuthManager{
 		db:           db,
 		sessionRepo:  sessionRepo,

@@ -2,6 +2,7 @@ package meow
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -12,14 +13,13 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/mdp/qrterminal/v3"
 	"github.com/skip2/go-qrcode"
-	"github.com/uptrace/bun"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 
-	"zpigo/internal/db/models"
 	"zpigo/internal/logger"
-	"zpigo/internal/repository"
+	"zpigo/internal/store"
+	"zpigo/internal/store/models"
 )
 
 type SessionManager struct {
@@ -28,8 +28,8 @@ type SessionManager struct {
 
 	container *sqlstore.Container
 
-	db          *bun.DB
-	sessionRepo repository.SessionRepositoryInterface
+	db          *sql.DB
+	sessionRepo store.SessionRepositoryInterface
 
 	cacheManager *CacheManager
 
@@ -40,7 +40,7 @@ type SessionManager struct {
 	killChannels map[string]chan bool
 }
 
-func NewSessionManager(container *sqlstore.Container, db *bun.DB, sessionRepo repository.SessionRepositoryInterface) *SessionManager {
+func NewSessionManager(container *sqlstore.Container, db *sql.DB, sessionRepo store.SessionRepositoryInterface) *SessionManager {
 	return &SessionManager{
 		whatsmeowClients: make(map[string]*whatsmeow.Client),
 		httpClients:      make(map[string]*resty.Client),
@@ -53,8 +53,7 @@ func NewSessionManager(container *sqlstore.Container, db *bun.DB, sessionRepo re
 	}
 }
 
-// GetDB retorna a instância do banco de dados
-func (sm *SessionManager) GetDB() *bun.DB {
+func (sm *SessionManager) GetDB() *sql.DB {
 	return sm.db
 }
 
@@ -71,7 +70,7 @@ func (sm *SessionManager) CreateSession(sessionID string) (*whatsmeow.Client, er
 
 	deviceStore := sm.container.NewDevice()
 
-	waLogger := logger.NewWhatsAppLogger("WhatsApp", DefaultLogLevel)
+	waLogger := logger.ForWhatsApp("WhatsApp")
 	client := whatsmeow.NewClient(deviceStore, waLogger)
 
 	sm.whatsmeowClients[sessionID] = client
@@ -124,7 +123,6 @@ func (sm *SessionManager) GetSession(sessionID string) (*whatsmeow.Client, bool)
 	client, exists := sm.whatsmeowClients[sessionID]
 	sm.logger.Info("Buscando sessão", "sessionID", sessionID, "exists", exists, "totalSessions", len(sm.whatsmeowClients))
 
-	// Debug: Listar todas as sessões
 	if !exists {
 		sessionIDs := make([]string, 0, len(sm.whatsmeowClients))
 		for id := range sm.whatsmeowClients {
@@ -235,13 +233,11 @@ func (sm *SessionManager) handleQREvents(sessionID string, qrChan <-chan whatsme
 			logger.Info("QR code autenticado com sucesso!")
 			wasSuccessful = true
 
-			// Obter o deviceJid do cliente
 			client, exists := sm.GetSession(sessionID)
 			deviceJid := ""
 			phone := ""
 			if exists && client.Store.ID != nil {
 				deviceJid = client.Store.ID.String()
-				// Extrair phone number do JID (parte antes do :)
 				if client.Store.ID.User != "" {
 					phone = strings.Split(client.Store.ID.User, ":")[0]
 				}
@@ -254,7 +250,6 @@ func (sm *SessionManager) handleQREvents(sessionID string, qrChan <-chan whatsme
 				logger.Info("Sessão marcada como conectada após autenticação bem-sucedida", "sessionID", sessionID, "phone", phone, "deviceJid", deviceJid)
 			}
 
-			// Limpar QR code após sucesso
 			err = sm.sessionRepo.UpdateQRCode(context.Background(), sessionID, "")
 			if err != nil {
 				logger.Error("Erro ao limpar QR code", "error", err)
@@ -267,14 +262,11 @@ func (sm *SessionManager) handleQREvents(sessionID string, qrChan <-chan whatsme
 		}
 	}
 
-	// Canal QR fechado - verificar se foi por sucesso ou erro
 	if wasSuccessful {
 		logger.Info("Canal QR fechado após autenticação bem-sucedida", "sessionID", sessionID)
-		// Não fazer nada - a sessão já foi marcada como conectada
 		return
 	}
 
-	// Canal fechado sem sucesso - provavelmente erro ou cancelamento
 	logger.Warn("Canal QR fechado sem sucesso", "sessionID", sessionID)
 
 	err := sm.sessionRepo.SetDisconnected(context.Background(), sessionID)
@@ -341,11 +333,9 @@ func (sm *SessionManager) GenerateQRCode(sessionID string) (string, error) {
 	return session.QRCode, nil
 }
 
-// ConnectOnStartup reconecta automaticamente todas as sessões que estavam conectadas
 func (sm *SessionManager) ConnectOnStartup() error {
-	sm.logger.Info("🔄 Iniciando reconexão automática de sessões conectadas")
+	sm.logger.Info("Verificando sessões para reconexão")
 
-	// Buscar todas as sessões conectadas no banco
 	sessions, err := sm.sessionRepo.GetAll(context.Background())
 	if err != nil {
 		sm.logger.Error("Erro ao buscar sessões para reconexão", "error", err)
@@ -361,7 +351,6 @@ func (sm *SessionManager) ConnectOnStartup() error {
 				"name", session.Name,
 				"deviceJid", session.DeviceJid)
 
-			// Reconectar sessão em goroutine separada
 			go func(sess models.Session) {
 				err := sm.reconnectSession(sess.ID, sess.DeviceJid)
 				if err != nil {
@@ -370,10 +359,9 @@ func (sm *SessionManager) ConnectOnStartup() error {
 						"name", sess.Name,
 						"error", err)
 
-					// Marcar como disconnected se falhou
 					sm.sessionRepo.UpdateStatus(context.Background(), sess.ID, models.StatusDisconnected)
 				} else {
-					sm.logger.Info("✅ Sessão reconectada com sucesso",
+					sm.logger.Info("Sessão reconectada",
 						"sessionID", sess.ID,
 						"name", sess.Name)
 				}
@@ -382,67 +370,55 @@ func (sm *SessionManager) ConnectOnStartup() error {
 	}
 
 	if connectedCount > 0 {
-		sm.logger.Info("🚀 Iniciando reconexão de sessões", "totalSessions", connectedCount)
+		sm.logger.Info("Reconectando sessões", "total", connectedCount)
 	} else {
-		sm.logger.Info("📭 Nenhuma sessão conectada encontrada para reconexão")
+		sm.logger.Info("Nenhuma sessão para reconectar")
 	}
 
 	return nil
 }
 
-// reconnectSession reconecta uma sessão específica usando o deviceJid
 func (sm *SessionManager) reconnectSession(sessionID, deviceJid string) error {
-	sm.logger.Info("🔄 Iniciando reconexão da sessão", "sessionID", sessionID, "deviceJid", deviceJid)
+	sm.logger.Info("Iniciando reconexão da sessão", "sessionID", sessionID, "deviceJid", deviceJid)
 
-	// Verificar se a sessão já existe
 	if _, exists := sm.GetSession(sessionID); exists {
 		sm.logger.Warn("Sessão já existe, pulando reconexão", "sessionID", sessionID)
 		return nil
 	}
 
-	// Parse do JID para validação
 	jid, err := types.ParseJID(deviceJid)
 	if err != nil {
 		sm.logger.Error("Erro ao fazer parse do deviceJid", "sessionID", sessionID, "deviceJid", deviceJid, "error", err)
-		// Marcar como disconnected se JID inválido
 		sm.sessionRepo.UpdateStatus(context.Background(), sessionID, models.StatusDisconnected)
 		return fmt.Errorf("erro ao fazer parse do deviceJid: %w", err)
 	}
 
-	// Verificar se o device store existe
 	deviceStore, err := sm.container.GetDevice(context.Background(), jid)
 	if err != nil || deviceStore == nil {
 		sm.logger.Warn("Device não encontrado no banco, sessão foi removida do WhatsApp", "sessionID", sessionID, "deviceJid", deviceJid, "error", err)
-		// Marcar como disconnected se device não existe
 		sm.sessionRepo.SetDisconnected(context.Background(), sessionID)
 		return fmt.Errorf("device não encontrado: %w", err)
 	}
 
-	// Verificar se o device tem dados válidos
 	if deviceStore == nil || deviceStore.ID == nil {
 		sm.logger.Warn("Device store inválido ou sem ID, sessão precisa ser reconectada manualmente", "sessionID", sessionID)
-		// Marcar como disconnected e deixar o usuário reconectar manualmente
 		sm.sessionRepo.UpdateStatus(context.Background(), sessionID, models.StatusDisconnected)
 		return fmt.Errorf("device store inválido ou sem ID válido")
 	}
 
-	// Usar o fluxo normal de criação de cliente (similar ao CreateSession)
-	waLogger := logger.NewWhatsAppLogger("WhatsApp", DefaultLogLevel)
+	waLogger := logger.ForWhatsApp("WhatsApp")
 	client := whatsmeow.NewClient(deviceStore, waLogger)
 
-	// Tentar conectar
 	err = client.Connect()
 	if err != nil {
 		sm.logger.Error("Erro ao conectar cliente na reconexão", "sessionID", sessionID, "deviceJid", deviceJid, "error", err)
-		// Marcar como disconnected se falhou na conexão
 		sm.sessionRepo.UpdateStatus(context.Background(), sessionID, models.StatusDisconnected)
 		return fmt.Errorf("erro ao conectar cliente: %w", err)
 	}
 
-	// Armazenar cliente apenas se conectou com sucesso
 	sm.SetWhatsmeowClient(sessionID, client)
 
-	sm.logger.Info("✅ Sessão reconectada com sucesso", "sessionID", sessionID, "deviceJid", deviceJid)
+	sm.logger.Info("Sessão reconectada", "sessionID", sessionID, "deviceJid", deviceJid)
 	return nil
 }
 

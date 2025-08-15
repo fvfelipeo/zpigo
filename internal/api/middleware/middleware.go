@@ -58,7 +58,6 @@ func (m *Middleware) CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
-		// Permitir origens específicas ou localhost para desenvolvimento
 		if origin == "" || strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
 			c.Header("Access-Control-Allow-Origin", "*")
 		} else {
@@ -100,7 +99,6 @@ func (m *Middleware) Security() gin.HandlerFunc {
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 
-		// CSP mais permissiva para Swagger UI
 		if strings.HasPrefix(c.Request.URL.Path, "/swagger") {
 			c.Header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https:; connect-src 'self' http: https:")
 		} else {

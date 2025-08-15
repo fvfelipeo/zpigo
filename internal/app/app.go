@@ -3,29 +3,22 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"go.mau.fi/whatsmeow/store/sqlstore"
-
 	"zpigo/internal/api/router"
 	"zpigo/internal/config"
-	"zpigo/internal/db"
 	"zpigo/internal/logger"
-	"zpigo/internal/meow"
-	"zpigo/internal/repository"
+	"zpigo/internal/store"
 )
 
 type App struct {
-	config    *config.Config
-	db        *db.DB
-	repos     *repository.Repositories
-	server    *http.Server
-	container *sqlstore.Container
+	config *config.Config
+	store  *store.UnifiedStore
+	server *http.Server
 }
 
 func New() (*App, error) {
@@ -36,32 +29,27 @@ func New() (*App, error) {
 	})
 
 	log := logger.WithComponent("app")
-	log.Info("🚀 Iniciando aplicação ZPigo")
+	log.Info("Iniciando aplicação")
 
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, fmt.Errorf("erro ao carregar configuração: %w", err)
 	}
 
-	database, err := db.NewConnection(cfg)
+	unifiedStore, err := store.NewUnifiedStore(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao conectar ao banco: %w", err)
+		return nil, fmt.Errorf("erro ao criar store unificado: %w", err)
 	}
 
-	repos := repository.NewRepositories(database)
+	migrator := store.NewMigrator(unifiedStore.GetDB())
+	ctx := context.Background()
+	migrationsDir := "internal/store/migrations"
 
-	log.Info("🔄 Executando migrações do banco de dados")
-	if err := repos.Migrate(context.Background()); err != nil {
+	if err := migrator.RunMigrations(ctx, migrationsDir); err != nil {
 		return nil, fmt.Errorf("erro ao executar migrações: %w", err)
 	}
-	log.Info("✅ Migrações executadas com sucesso")
 
-	container, err := meow.NewWhatsAppStore(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("erro ao criar container WhatsApp: %w", err)
-	}
-
-	handler := router.NewRouter(repos, container)
+	handler := router.NewRouter(unifiedStore)
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
@@ -72,11 +60,9 @@ func New() (*App, error) {
 	}
 
 	return &App{
-		config:    cfg,
-		db:        database,
-		repos:     repos,
-		server:    server,
-		container: container,
+		config: cfg,
+		store:  unifiedStore,
+		server: server,
 	}, nil
 }
 
@@ -87,8 +73,7 @@ func (a *App) Run() error {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		appLogger.Info("🚀 Servidor iniciado", "porta", a.config.Server.Port)
-		appLogger.Info("📖 Documentação da API", "url", fmt.Sprintf("http://localhost:%d/health", a.config.Server.Port))
+		appLogger.Info("Servidor iniciado", "porta", a.config.Server.Port, "health", fmt.Sprintf("http://localhost:%d/health", a.config.Server.Port))
 
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			appLogger.Fatal("Erro ao iniciar servidor", "error", err)
@@ -106,20 +91,14 @@ func (a *App) Run() error {
 		return err
 	}
 
-	log.Println("✅ Servidor parado com sucesso")
+	logger.Info("Servidor parado")
 	return nil
 }
 
 func (a *App) Close() error {
-	if a.repos != nil {
-		if err := a.repos.Close(); err != nil {
-			log.Printf("Erro ao fechar repositories: %v", err)
-		}
-	}
-
-	if a.container != nil {
-		if err := a.container.Close(); err != nil {
-			log.Printf("Erro ao fechar container WhatsApp: %v", err)
+	if a.store != nil {
+		if err := a.store.Close(); err != nil {
+			logger.Error("Erro ao fechar store unificado", "error", err)
 		}
 	}
 

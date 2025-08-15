@@ -3,7 +3,7 @@ package dto
 import (
 	"time"
 
-	"zpigo/internal/db/models"
+	"zpigo/internal/store/models"
 )
 
 type CreateSessionRequest struct {

@@ -1,11 +1,11 @@
 package meow
 
 import (
+	"database/sql"
 	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/uptrace/bun"
 	"go.mau.fi/whatsmeow"
 )
 
@@ -18,7 +18,7 @@ type ZPigoClient struct {
 	EventHandlerID uint32
 	Subscriptions  []string
 
-	DB *bun.DB
+	DB *sql.DB
 
 	HTTPClient *resty.Client
 
@@ -31,7 +31,7 @@ type ZPigoClient struct {
 	CacheManager *CacheManager
 }
 
-func NewZPigoClient(sessionID, apiKey string, waClient *whatsmeow.Client, db *bun.DB) *ZPigoClient {
+func NewZPigoClient(sessionID, apiKey string, waClient *whatsmeow.Client, db *sql.DB) *ZPigoClient {
 	client := &ZPigoClient{
 		WAClient:      waClient,
 		SessionID:     sessionID,

@@ -9,7 +9,7 @@ API REST para gerenciamento de sessões do WhatsApp usando Go e WhatsApp Web Mul
 - ✅ Autenticação via QR Code ou emparelhamento por telefone
 - ✅ Configuração de proxy por sessão
 - ✅ API REST com endpoints bem definidos
-- ✅ Banco de dados PostgreSQL com ORM Bun
+- ✅ Banco de dados PostgreSQL com SQL nativo
 - ✅ Arquitetura limpa e modular
 
 ## Tecnologias
@@ -17,7 +17,7 @@ API REST para gerenciamento de sessões do WhatsApp usando Go e WhatsApp Web Mul
 - **Go 1.23+** - Linguagem de programação
 - **Chi Router** - Router HTTP minimalista
 - **PostgreSQL** - Banco de dados
-- **Bun ORM** - Object-Relational Mapping
+- **SQL Nativo** - Queries SQL diretas com database/sql
 - **WhatsApp Web Multi-Device** - Biblioteca whatsmeow
 
 ## Instalação
@@ -150,8 +150,9 @@ zpigo/
 │   │   └── router/              # Configuração de rotas
 │   ├── app/                     # Configuração da aplicação
 │   ├── config/                  # Configurações
-│   ├── db/                      # Banco de dados
-│   │   └── models/              # Modelos de dados
+│   ├── store/                   # Store unificado
+│   │   ├── models/              # Modelos de dados
+│   │   └── migrations/          # Migrações SQL
 │   ├── meow/                    # Gerenciador WhatsApp
 │   └── repository/              # Camada de dados
 ├── .env.example                 # Exemplo de configuração
