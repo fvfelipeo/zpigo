@@ -17,7 +17,7 @@ import (
 
 type App struct {
 	config *config.Config
-	store  *store.UnifiedStore
+	store  *store.Store
 	server *http.Server
 }
 
@@ -36,17 +36,9 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("erro ao carregar configuração: %w", err)
 	}
 
-	unifiedStore, err := store.NewUnifiedStore(cfg)
+	unifiedStore, err := store.NewStore(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao criar store unificado: %w", err)
-	}
-
-	migrator := store.NewMigrator(unifiedStore.GetDB())
-	ctx := context.Background()
-	migrationsDir := "internal/store/migrations"
-
-	if err := migrator.RunMigrations(ctx, migrationsDir); err != nil {
-		return nil, fmt.Errorf("erro ao executar migrações: %w", err)
 	}
 
 	handler := router.NewRouter(unifiedStore)

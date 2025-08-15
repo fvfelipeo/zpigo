@@ -73,6 +73,9 @@ func (sm *SessionManager) CreateSession(sessionID string) (*whatsmeow.Client, er
 	waLogger := logger.ForWhatsApp("WhatsApp")
 	client := whatsmeow.NewClient(deviceStore, waLogger)
 
+	// Adicionar event handler para logging
+	client.AddEventHandler(sm.createEventHandler(sessionID))
+
 	sm.whatsmeowClients[sessionID] = client
 	sm.logger.Info("Sessão criada com sucesso", "sessionID", sessionID)
 
@@ -132,6 +135,14 @@ func (sm *SessionManager) GetSession(sessionID string) (*whatsmeow.Client, bool)
 	}
 
 	return client, exists
+}
+
+// sessionExists verifica se uma sessão existe sem fazer log de erro
+func (sm *SessionManager) sessionExists(sessionID string) bool {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	_, exists := sm.whatsmeowClients[sessionID]
+	return exists
 }
 
 func (sm *SessionManager) DeleteSession(sessionID string) error {
@@ -381,7 +392,7 @@ func (sm *SessionManager) ConnectOnStartup() error {
 func (sm *SessionManager) reconnectSession(sessionID, deviceJid string) error {
 	sm.logger.Info("Iniciando reconexão da sessão", "sessionID", sessionID, "deviceJid", deviceJid)
 
-	if _, exists := sm.GetSession(sessionID); exists {
+	if sm.sessionExists(sessionID) {
 		sm.logger.Warn("Sessão já existe, pulando reconexão", "sessionID", sessionID)
 		return nil
 	}
@@ -400,14 +411,17 @@ func (sm *SessionManager) reconnectSession(sessionID, deviceJid string) error {
 		return fmt.Errorf("device não encontrado: %w", err)
 	}
 
-	if deviceStore == nil || deviceStore.ID == nil {
-		sm.logger.Warn("Device store inválido ou sem ID, sessão precisa ser reconectada manualmente", "sessionID", sessionID)
+	if deviceStore.ID == nil {
+		sm.logger.Warn("Device store sem ID válido, sessão precisa ser reconectada manualmente", "sessionID", sessionID)
 		sm.sessionRepo.UpdateStatus(context.Background(), sessionID, models.StatusDisconnected)
-		return fmt.Errorf("device store inválido ou sem ID válido")
+		return fmt.Errorf("device store sem ID válido")
 	}
 
 	waLogger := logger.ForWhatsApp("WhatsApp")
 	client := whatsmeow.NewClient(deviceStore, waLogger)
+
+	// Adicionar event handler para logging
+	client.AddEventHandler(sm.createEventHandler(sessionID))
 
 	err = client.Connect()
 	if err != nil {
@@ -576,6 +590,104 @@ func (sm *SessionManager) GetQRCodeByAPIKey(apiKey, sessionID string) (string, e
 	}
 
 	return sessionInfo.QRCode, nil
+}
+
+// getEventDescription retorna uma descrição amigável para cada tipo de evento
+func getEventDescription(eventType string) string {
+	switch eventType {
+	case "*events.Message":
+		return "📨 MENSAGEM RECEBIDA"
+	case "*events.Receipt":
+		return "✅ CONFIRMAÇÃO DE LEITURA"
+	case "*events.Connected":
+		return "🔗 CONECTADO AO WHATSAPP"
+	case "*events.Disconnected":
+		return "❌ DESCONECTADO DO WHATSAPP"
+	case "*events.OfflineSyncCompleted":
+		return "🔄 SINCRONIZAÇÃO OFFLINE CONCLUÍDA"
+	case "*events.OfflineSyncPreview":
+		return "👀 PRÉVIA DE SINCRONIZAÇÃO OFFLINE"
+	case "*events.PushName":
+		return "👤 NOME DE USUÁRIO ATUALIZADO"
+	case "*events.BusinessName":
+		return "🏢 NOME COMERCIAL ATUALIZADO"
+	case "*events.GroupInfo":
+		return "👥 INFORMAÇÕES DO GRUPO ATUALIZADAS"
+	case "*events.JoinedGroup":
+		return "➕ ADICIONADO AO GRUPO"
+	case "*events.LeftGroup":
+		return "➖ REMOVIDO DO GRUPO"
+	case "*events.Contact":
+		return "📞 CONTATO ATUALIZADO"
+	case "*events.Presence":
+		return "👁️ STATUS DE PRESENÇA"
+	case "*events.ChatPresence":
+		return "💬 PRESENÇA NO CHAT"
+	case "*events.HistorySync":
+		return "📚 SINCRONIZAÇÃO DE HISTÓRICO"
+	case "*events.AppState":
+		return "⚙️ ESTADO DA APLICAÇÃO"
+	case "*events.KeepAliveTimeout":
+		return "⏰ TIMEOUT DE KEEP ALIVE"
+	case "*events.KeepAliveRestored":
+		return "🔄 KEEP ALIVE RESTAURADO"
+	case "*events.LoggedOut":
+		return "🚪 LOGOUT REALIZADO"
+	case "*events.StreamReplaced":
+		return "🔄 STREAM SUBSTITUÍDO"
+	case "*events.TemporaryBan":
+		return "🚫 BANIMENTO TEMPORÁRIO"
+	case "*events.ConnectFailure":
+		return "💥 FALHA NA CONEXÃO"
+	case "*events.ClientOutdated":
+		return "📱 CLIENTE DESATUALIZADO"
+	case "*events.Blocklist":
+		return "🚫 LISTA DE BLOQUEIOS ATUALIZADA"
+	case "*events.MediaRetry":
+		return "🔄 TENTATIVA DE REENVIO DE MÍDIA"
+	case "*events.CallOffer":
+		return "📞 OFERTA DE CHAMADA"
+	case "*events.CallAccept":
+		return "✅ CHAMADA ACEITA"
+	case "*events.CallPreAccept":
+		return "⏳ PRÉ-ACEITAÇÃO DE CHAMADA"
+	case "*events.CallTransport":
+		return "🚚 TRANSPORTE DE CHAMADA"
+	case "*events.CallRelayLatency":
+		return "📡 LATÊNCIA DE RELAY DA CHAMADA"
+	case "*events.CallTerminate":
+		return "📞 CHAMADA FINALIZADA"
+	case "*events.UndecryptableMessage":
+		return "🔐 MENSAGEM NÃO DESCRIPTOGRAFÁVEL"
+	case "*events.NewsletterJoin":
+		return "📰 INSCRITO NO NEWSLETTER"
+	case "*events.NewsletterLeave":
+		return "📰 DESINSCRITO DO NEWSLETTER"
+	case "*events.NewsletterMuteChange":
+		return "🔇 NEWSLETTER SILENCIADO/ATIVADO"
+	case "*events.NewsletterLiveUpdate":
+		return "📰 ATUALIZAÇÃO AO VIVO DO NEWSLETTER"
+	case "*events.NewsletterMetadataUpdate":
+		return "📰 METADADOS DO NEWSLETTER ATUALIZADOS"
+	default:
+		return "🎯 EVENTO WHATSAPP"
+	}
+}
+
+// createEventHandler cria um event handler para logging de eventos
+func (sm *SessionManager) createEventHandler(sessionID string) func(interface{}) {
+	return func(rawEvt interface{}) {
+		eventLogger := logger.WithComponent("EventPayload").With("sessionID", sessionID)
+
+		// Determinar o tipo do evento
+		eventType := fmt.Sprintf("%T", rawEvt)
+
+		// Obter descrição amigável do evento
+		eventDescription := getEventDescription(eventType)
+
+		// Log com nosso sistema padrão sem pretty print
+		eventLogger.Info(eventDescription, "eventType", eventType, "payload", rawEvt)
+	}
 }
 
 func (sm *SessionManager) DeleteSessionByAPIKey(apiKey, sessionID string) error {

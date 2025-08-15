@@ -10,6 +10,12 @@ import (
 	"zpigo/internal/webhook"
 )
 
+// logEventPayload loga o payload do evento no console
+func (zc *ZPigoClient) logEventPayload(eventType string, rawEvt interface{}) {
+	eventLogger := logger.WithComponent("EventPayload").With("sessionID", zc.SessionID)
+	eventLogger.Info("Evento recebido", "eventType", eventType, "payload", rawEvt)
+}
+
 func (zc *ZPigoClient) EventHandler(rawEvt interface{}) {
 	zc.mu.RLock()
 	defer zc.mu.RUnlock()
@@ -167,14 +173,24 @@ func (zc *ZPigoClient) EventHandler(rawEvt interface{}) {
 		zc.handlePictureEvent(evt, postmap)
 
 	default:
+		eventType = fmt.Sprintf("UnhandledEvent_%T", rawEvt)
 		eventLogger.Debug("Evento não tratado", "type", fmt.Sprintf("%T", rawEvt))
+
+		// Logar payload mesmo para eventos não tratados
+		zc.logEventPayload(eventType, rawEvt)
 		return
 	}
 
-	if shouldCallWebhook && zc.shouldSendEvent(eventType) {
+	if shouldCallWebhook {
 		postmap["type"] = eventType
-		eventLogger.Debug("Enviando webhook", "eventType", eventType)
-		go zc.callWebhook(postmap)
+
+		// Logar o payload do evento no console
+		zc.logEventPayload(eventType, rawEvt)
+
+		if zc.shouldSendEvent(eventType) {
+			eventLogger.Debug("Enviando webhook", "eventType", eventType)
+			go zc.callWebhook(postmap)
+		}
 	}
 }
 
@@ -191,8 +207,6 @@ func (zc *ZPigoClient) shouldSendEvent(eventType string) bool {
 
 	return false
 }
-
-
 
 func (zc *ZPigoClient) handleConnectedEvent() {
 	zc.SetActive(true)
@@ -245,7 +259,6 @@ func (zc *ZPigoClient) handlePairSuccessEvent(evt *events.PairSuccess) {
 		zc.UpdateSessionInfo("Jid", evt.ID.String())
 	}
 }
-
 
 func (zc *ZPigoClient) handleMessageEvent(evt *events.Message, postmap map[string]interface{}) {
 	postmap["messageId"] = evt.Info.ID
@@ -310,7 +323,6 @@ func (zc *ZPigoClient) handleLoggedOutEvent(evt *events.LoggedOut) {
 	}
 }
 
-
 func (zc *ZPigoClient) handleGroupInfoEvent(evt *events.GroupInfo, postmap map[string]interface{}) {
 	postmap["jid"] = evt.JID.String()
 	postmap["notify"] = evt.Notify
@@ -349,7 +361,6 @@ func (zc *ZPigoClient) handleJoinedGroupEvent(evt *events.JoinedGroup, postmap m
 		postmap["sender"] = evt.Sender.String()
 	}
 }
-
 
 func (zc *ZPigoClient) handleContactEvent(evt *events.Contact, postmap map[string]interface{}) {
 	postmap["jid"] = evt.JID.String()

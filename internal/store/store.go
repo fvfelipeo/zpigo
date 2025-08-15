@@ -101,8 +101,31 @@ func (s *Store) Close() error {
 
 // createAppTables cria as tabelas da aplicação
 func (s *Store) createAppTables(ctx context.Context) error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS sessions (
+	s.logger.Info("Criando tabelas da aplicação")
+
+	// Criar tabela de sessões
+	if err := s.createSessionsTable(ctx); err != nil {
+		return fmt.Errorf("erro ao criar tabela sessions: %w", err)
+	}
+
+	// Criar tabela de webhooks
+	if err := s.createWebhooksTable(ctx); err != nil {
+		return fmt.Errorf("erro ao criar tabela webhooks: %w", err)
+	}
+
+	// Criar índices
+	if err := s.createIndexes(ctx); err != nil {
+		return fmt.Errorf("erro ao criar índices: %w", err)
+	}
+
+	s.logger.Info("Tabelas da aplicação criadas com sucesso")
+	return nil
+}
+
+// createSessionsTable cria a tabela de sessões
+func (s *Store) createSessionsTable(ctx context.Context) error {
+	query := `
+		CREATE TABLE IF NOT EXISTS sessions (
 			id VARCHAR(255) PRIMARY KEY,
 			name VARCHAR(255) NOT NULL,
 			phone VARCHAR(20),
@@ -117,8 +140,16 @@ func (s *Store) createAppTables(ctx context.Context) error {
 			createdat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updatedat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			connectedat TIMESTAMP
-		)`,
-		`CREATE TABLE IF NOT EXISTS webhooks (
+		)`
+
+	_, err := s.db.ExecContext(ctx, query)
+	return err
+}
+
+// createWebhooksTable cria a tabela de webhooks
+func (s *Store) createWebhooksTable(ctx context.Context) error {
+	query := `
+		CREATE TABLE IF NOT EXISTS webhooks (
 			id VARCHAR(255) PRIMARY KEY,
 			sessionid VARCHAR(255) NOT NULL,
 			url VARCHAR(500) NOT NULL,
@@ -126,15 +157,23 @@ func (s *Store) createAppTables(ctx context.Context) error {
 			createdat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updatedat TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (sessionid) REFERENCES sessions(id) ON DELETE CASCADE
-		)`,
+		)`
+
+	_, err := s.db.ExecContext(ctx, query)
+	return err
+}
+
+// createIndexes cria os índices das tabelas
+func (s *Store) createIndexes(ctx context.Context) error {
+	indexes := []string{
 		`CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_devicejid ON sessions(devicejid)`,
 		`CREATE INDEX IF NOT EXISTS idx_webhooks_sessionid ON webhooks(sessionid)`,
 	}
 
-	for _, query := range queries {
+	for _, query := range indexes {
 		if _, err := s.db.ExecContext(ctx, query); err != nil {
-			return fmt.Errorf("erro ao executar query: %s - %w", query, err)
+			return fmt.Errorf("erro ao criar índice: %s - %w", query, err)
 		}
 	}
 

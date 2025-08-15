@@ -12,7 +12,6 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-
 type Logger interface {
 	Debug(msg string, fields ...any)
 	Info(msg string, fields ...any)
@@ -34,7 +33,6 @@ type Config struct {
 type ZLogger struct {
 	logger zerolog.Logger
 }
-
 
 func New(config Config) Logger {
 	level := parseLevel(config.Level)
@@ -66,7 +64,6 @@ func NewForComponent(component string) Logger {
 		Component: component,
 	})
 }
-
 
 func (l *ZLogger) Debug(msg string, fields ...any) {
 	event := l.logger.Debug()
@@ -107,7 +104,6 @@ func (l *ZLogger) WithComponent(component string) Logger {
 	newLogger := l.logger.With().Str("component", component).Logger()
 	return &ZLogger{logger: newLogger}
 }
-
 
 func (l *ZLogger) addFields(event *zerolog.Event, fields ...any) {
 	for i := 0; i < len(fields); i += 2 {
@@ -169,7 +165,6 @@ func parseLevel(level string) zerolog.Level {
 	}
 }
 
-
 type WAAdapter struct {
 	logger Logger
 }
@@ -204,7 +199,6 @@ func NewWhatsAppLogger(component string, level string) waLog.Logger {
 	return ForWhatsApp(component)
 }
 
-
 var globalLogger Logger
 
 func Init(config Config) {
@@ -221,7 +215,6 @@ func Get() Logger {
 	}
 	return globalLogger
 }
-
 
 func Debug(msg string, fields ...any) {
 	Get().Debug(msg, fields...)
